@@ -94,7 +94,7 @@ async def message_handler_telegram(message: MsgNats):
     """Takes a message from nats and sends it to telegram."""
 
     msg = Msg(**json.loads(message.data.decode()))
-    logging.debug("teesports.%s > %s", msg.message_thread_id, msg.text)
+    logging.debug("tw.%s > %s", msg.message_thread_id, msg.text)
 
     if buffer.get(msg.message_thread_id) is None:
         buffer[msg.message_thread_id] = Buffer()
@@ -133,10 +133,10 @@ async def main():
     global js
     nc, js = await nats_connect(env)
 
-    # await js.delete_stream("teesports")
-    await js.add_stream(name='teesports', subjects=['teesports.*'], max_msgs=5000)
-    await js.subscribe("teesports.messages", "telegram_bot", cb=message_handler_telegram)
-    logging.info("nats js subscribe \"teesports.messages\"")
+    # await js.delete_stream("tw")
+    await js.add_stream(name='tw', subjects=['tw.*'], max_msgs=5000)
+    await js.subscribe("tw.messages", "telegram_bot", cb=message_handler_telegram)
+    logging.info("nats js subscribe \"tw.messages\"")
     logging.info("bot is running")
 
     await bot.infinity_polling(logger_level=logging.DEBUG)
@@ -152,7 +152,7 @@ async def echo_media(message: telebot.types.Message):
     text += f"say \"{check_media(message)[:255]}\""
 
     await js.publish(
-        f"teesports.{message.message_thread_id}",
+        f"tw.{message.message_thread_id}",
         text.encode(),
         headers={
             "Nats-Msg-Id": f"{message.from_user.id}_{message.date}_{hash(text)}_{message.chat.id}"
@@ -170,7 +170,7 @@ async def echo_text(message: telebot.types.Message):
     text += f"say \"{generate_message(message)[:255]}\""
 
     await js.publish(
-        f"teesports.{message.message_thread_id}",
+        f"tw.{message.message_thread_id}",
         text.encode(),
         headers={
             "Nats-Msg-Id": f"{message.from_user.id}_{message.date}_{hash(text)}_{message.chat.id}"
