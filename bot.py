@@ -13,7 +13,7 @@ from telebot.async_telebot import AsyncTeleBot
 from telebot.asyncio_helper import ApiTelegramException
 from telebot.util import split_string
 
-from model import Env, Msg
+from model import Env, Msg, Buffer
 from emojies import replace_from_emoji
 from util import nats_connect, get_data_env
 
@@ -41,7 +41,6 @@ logging.info("count bots: %s", len(bots))
 bots = cycle(bots)
 
 js: JetStreamContext = None
-old_message_hash, count = 0, 0
 buffer = {}
 
 logging.basicConfig(
@@ -92,26 +91,25 @@ def check_media(message: telebot.types.Message) -> str:
 
 
 async def message_handler_telegram(message: MsgNats):
-    global old_message_hash, count
     """Takes a message from nats and sends it to telegram."""
 
     msg = Msg(**json.loads(message.data.decode()))
     logging.debug("teesports.%s > %s", msg.message_thread_id, msg.text)
 
     if buffer.get(msg.message_thread_id) is None:
-        buffer[msg.message_thread_id] = ""
+        buffer[msg.message_thread_id] = Buffer()
 
     text = f"{msg.name}: {msg.text}" if msg.name is not None and msg.name != "" else f"{msg.text}"
-    buffer[msg.message_thread_id] += text + "\n"
-    count += 1
+    buffer[msg.message_thread_id].string += text + "\n"
+    buffer[msg.message_thread_id].count += 1
 
     text_hash = hash(text)
 
-    if old_message_hash != text_hash or count >= env.repetition:
-        old_message_hash, count = text_hash, 0
+    if buffer[msg.message_thread_id].old_message_hash != text_hash or buffer[msg.message_thread_id].count >= env.repetition:
+        list_text = [buffer[msg.message_thread_id].string]
+        buffer[msg.message_thread_id] = Buffer()
 
-        list_text = [buffer[msg.message_thread_id]]
-        if len(buffer[msg.message_thread_id]) > 4000:
+        if len(buffer[msg.message_thread_id].string) > 4000:
             list_text = split_string(list_text[0], 2000)
 
         for i in list_text:
@@ -124,7 +122,8 @@ async def message_handler_telegram(message: MsgNats):
             except ApiTelegramException:
                 logging.debug("ApiTelegramException occurred")
             else:
-                buffer[msg.message_thread_id] = ""
+                buffer[msg.message_thread_id].string = ""
+
 
 def text_replace(msg: str) -> str:
     return msg.replace("\\", "\\\\").replace("\'", "\\\'").replace("\"", "\\\"").replace("\n", " ")

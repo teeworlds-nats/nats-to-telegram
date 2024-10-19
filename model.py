@@ -24,3 +24,9 @@ class Msg(BaseModel):
     message_thread_id: int | str
     regex_type: str
     text: str
+
+
+class Buffer(BaseModel):
+    string: str = Field("")
+    old_message_hash: int = Field(0)
+    count: int = Field(0)
