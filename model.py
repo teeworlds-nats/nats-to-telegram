@@ -1,3 +1,5 @@
+from typing import Optional, Union
+
 from pydantic import BaseModel, Field
 
 
@@ -18,15 +20,25 @@ class Env(BaseModel):
     repetition: int = Field(100)
 
 
+class DataStatus(BaseModel):
+    time: Optional[str]
+    user_id: Optional[str]
+    addr: Optional[str]
+    name: Optional[str]
+    version: Optional[str]
+
+
 class Msg(BaseModel):
-    server_name: str
-    name: str | None
-    message_thread_id: int | str
+    data: Optional[DataStatus]
+    server_name: Optional[str]
+    name: Optional[str]
+    message_thread_id: Union[int, str]
     regex_type: str
-    text: str
+    text: Optional[str]
 
 
 class Buffer(BaseModel):
     string: str = Field("")
+    status_data: list[str] = Field([])
     old_message_hash: int = Field(0)
     count: int = Field(0)

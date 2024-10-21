@@ -41,7 +41,7 @@ logging.info("count bots: %s", len(bots))
 bots = cycle(bots)
 
 js: JetStreamContext = None
-buffer = {}
+buffer: dict[int | str, Buffer] = {}
 
 logging.basicConfig(
     format='%(asctime)s:%(levelname)s:%(name)s: %(message)s'
@@ -49,6 +49,15 @@ logging.basicConfig(
 log = logging.getLogger("root")
 log.setLevel(getattr(logging, env.log_level.upper()))
 
+
+async def send_msg_telegram(text: str, thread_id: int) -> bool:
+    try:
+        await next(bots).send_message(env.chat_id, text, message_thread_id=thread_id)
+    except ApiTelegramException:
+        logging.debug("ApiTelegramException occurred")
+    else:
+        return True
+    return False
 
 def generate_message(_msg: telebot.types.Message, text: str = None) -> str:
     return env.text.format(
@@ -65,10 +74,7 @@ def generate_message_reply(_msg: telebot.types.Message, text: str = None) -> str
     return env.reply_string.format(
         replay_id=_msg.reply_to_message.id,
         replay_msg=text_replace(generate_message(_msg.reply_to_message))
-    ) if (
-            _msg.reply_to_message is not None and
-            _msg.reply_to_message.text is not None
-    ) else text
+    ) if _msg.reply_to_message.text is not None else text
 
 
 def check_media(message: telebot.types.Message) -> str:
@@ -99,7 +105,16 @@ async def message_handler_telegram(message: MsgNats):
     if buffer.get(msg.message_thread_id) is None:
         buffer[msg.message_thread_id] = Buffer()
 
+    if msg.text is None and msg.data is not None:
+        if msg.data.name is not None and msg.data.user_id != "end_status":
+            buffer[msg.message_thread_id].status_data.append(f"{msg.data.name}")
+        else:
+            if await send_msg_telegram("Players: " + ", ".join(buffer[msg.message_thread_id].status_data), msg.message_thread_id):
+                buffer[msg.message_thread_id].status_data.clear()
+        return
+
     text = f"{msg.name}: {msg.text}" if msg.name is not None and msg.name != "" else f"{msg.text}"
+
     buffer[msg.message_thread_id].string += text + "\n"
     buffer[msg.message_thread_id].count += 1
 
@@ -107,21 +122,13 @@ async def message_handler_telegram(message: MsgNats):
 
     if buffer[msg.message_thread_id].old_message_hash != text_hash or buffer[msg.message_thread_id].count >= env.repetition:
         list_text = [buffer[msg.message_thread_id].string]
-        buffer[msg.message_thread_id] = Buffer()
+        buffer[msg.message_thread_id].count = 0
 
         if len(buffer[msg.message_thread_id].string) > 4000:
             list_text = split_string(list_text[0], 2000)
 
         for i in list_text:
-            try:
-                await next(bots).send_message(
-                    env.chat_id,
-                    i,
-                    message_thread_id=msg.message_thread_id
-                )
-            except ApiTelegramException:
-                logging.debug("ApiTelegramException occurred")
-            else:
+            if await send_msg_telegram(i, msg.message_thread_id):
                 buffer[msg.message_thread_id].string = ""
 
 
@@ -147,8 +154,11 @@ async def echo_media(message: telebot.types.Message):
     if js is None or message is None:
         return
 
-    reply = generate_message_reply(message)
-    text = f"say \"{reply[:255]}\";" if reply is not None else ""
+    text = ""
+
+    if message.reply_to_message is not None:
+        reply = generate_message_reply(message)
+        text = f"say \"{reply[:255]}\";" if reply is not None else ""
     text += f"say \"{check_media(message)[:255]}\""
 
     await js.publish(
@@ -165,9 +175,18 @@ async def echo_text(message: telebot.types.Message):
     if js is None or message is None:
         return
 
-    reply = generate_message_reply(message)
-    text = f"say \"{reply[:255]}\";" if reply is not None else ""
-    text += f"say \"{generate_message(message)[:255]}\""
+    text = ""
+
+    match message.text:
+        case "/ip" | "/addr":
+            text = "get addr"
+        case "/players" | "/status":
+            text = "show_ips 1; status; echo \"end_status\""
+        case _:
+            if message.reply_to_message is not None:
+                reply = generate_message_reply(message)
+                text += f"say \"{reply[:255]}\";" if reply is not None else ""
+            text += f"say \"{generate_message(message)[:255]}\""
 
     await js.publish(
         f"tw.{message.message_thread_id}",
