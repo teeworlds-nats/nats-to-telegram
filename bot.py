@@ -69,6 +69,15 @@ def generate_message(_msg: telebot.types.Message, text: str = None) -> str:
         else f"{text} | {_msg.caption}"
     )
 
+async def send_message(text: str, message) -> None:
+    await js.publish(
+        f"tw.{message.message_thread_id}",
+        text.encode(),
+        headers={
+            "Nats-Msg-Id": f"{message.from_user.id}_{message.date}_{hash(text)}_{message.chat.id}"
+        }
+    )
+
 
 def generate_message_reply(_msg: telebot.types.Message, text: str = None) -> str | None:
     return env.reply_string.format(
@@ -121,6 +130,8 @@ async def message_handler_telegram(message: MsgNats):
     text_hash = hash(text)
 
     if buffer[msg.message_thread_id].old_message_hash != text_hash or buffer[msg.message_thread_id].count >= env.repetition:
+        buffer[msg.message_thread_id].old_message_hash = text_hash
+
         list_text = [buffer[msg.message_thread_id].string]
         buffer[msg.message_thread_id].count = 0
 
@@ -171,7 +182,7 @@ async def echo_media(message: telebot.types.Message):
 
 
 @bot.message_handler(content_types=["text"])
-async def echo_text(message: telebot.types.Message):
+async def echo_text(message: telebot.types.Message, text: str = None):
     if js is None or message is None:
         return
 
@@ -181,20 +192,16 @@ async def echo_text(message: telebot.types.Message):
         case "/ip" | "/addr":
             text = "get addr"
         case "/players" | "/status":
-            text = "show_ips 1; status; echo \"end_status\""
+            text = "echo \"end_status\""
+            await send_message("status", message)
+            await asyncio.sleep(1)
         case _:
             if message.reply_to_message is not None:
                 reply = generate_message_reply(message)
                 text += f"say \"{reply[:255]}\";" if reply is not None else ""
             text += f"say \"{generate_message(message)[:255]}\""
 
-    await js.publish(
-        f"tw.{message.message_thread_id}",
-        text.encode(),
-        headers={
-            "Nats-Msg-Id": f"{message.from_user.id}_{message.date}_{hash(text)}_{message.chat.id}"
-        }
-    )
+    await send_message(text, message)
 
 
 if __name__ == '__main__':
