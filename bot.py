@@ -89,8 +89,8 @@ def check_media(message: telebot.types.Message) -> str:
 async def send_msg_telegram(text: str, thread_id: int) -> bool:
     try:
         await next(bots).send_message(env.chat_id, text, message_thread_id=thread_id)
-    except ApiTelegramException:
-        logging.debug("ApiTelegramException occurred")
+    except ApiTelegramException as err:
+        logging.debug("ApiTelegramException occurred: %s", err)
     else:
         return True
     return False
@@ -107,7 +107,6 @@ async def send_message(text: str, message) -> None:
 
 async def message_handler_telegram(message: MsgNats):
     """Takes a message from nats and sends it to telegram."""
-    logging.debug("The message has been received")
     msg = Msg(**json.loads(message.data.decode()))
     logging.debug("tw.%s > %s", msg.message_thread_id, msg.text)
 
