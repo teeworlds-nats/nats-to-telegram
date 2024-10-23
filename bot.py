@@ -107,7 +107,7 @@ async def send_message(text: str, message) -> None:
 
 async def message_handler_telegram(message: MsgNats):
     """Takes a message from nats and sends it to telegram."""
-
+    logging.debug("The message has been received")
     msg = Msg(**json.loads(message.data.decode()))
     logging.debug("tw.%s > %s", msg.message_thread_id, msg.text)
 
