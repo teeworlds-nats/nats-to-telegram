@@ -151,8 +151,8 @@ async def main():
     global js
     nc, js = await nats_connect(env)
 
-    await js.delete_stream("tw")
-    await js.add_stream(name='tw', subjects=['tw.*', 'tw.*.*'], max_msgs=5000)
+    # await js.delete_stream("tw")
+    await js.add_stream(name='tw', subjects=['tw.*', 'tw.*.*', 'tw.*.*.*'], max_msgs=5000)
     await js.subscribe("tw.tg.*", "telegram_bot", cb=message_handler_telegram)
     logging.info("nats js subscribe \"tw.messages\"")
     logging.info("bot is running")
