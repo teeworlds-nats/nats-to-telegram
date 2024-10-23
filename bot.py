@@ -49,16 +49,6 @@ logging.basicConfig(
 log = logging.getLogger("root")
 log.setLevel(getattr(logging, env.log_level.upper()))
 
-
-async def send_msg_telegram(text: str, thread_id: int) -> bool:
-    try:
-        await next(bots).send_message(env.chat_id, text, message_thread_id=thread_id)
-    except ApiTelegramException:
-        logging.debug("ApiTelegramException occurred")
-    else:
-        return True
-    return False
-
 def generate_message(_msg: telebot.types.Message, text: str = None) -> str:
     return env.text.format(
         name=_msg.from_user.first_name + (_msg.from_user.last_name or ''),
@@ -67,15 +57,6 @@ def generate_message(_msg: telebot.types.Message, text: str = None) -> str:
         else text
         if _msg.caption is None
         else f"{text} | {_msg.caption}"
-    )
-
-async def send_message(text: str, message) -> None:
-    await js.publish(
-        f"tw.{message.message_thread_id}",
-        text.encode(),
-        headers={
-            "Nats-Msg-Id": f"{message.from_user.id}_{message.date}_{hash(text)}_{message.chat.id}"
-        }
     )
 
 
@@ -103,6 +84,25 @@ def check_media(message: telebot.types.Message) -> str:
         if getattr(message, i) is not None:
             return generate_message(message, getattr(env, i + '_string'))
     return ""
+
+
+async def send_msg_telegram(text: str, thread_id: int) -> bool:
+    try:
+        await next(bots).send_message(env.chat_id, text, message_thread_id=thread_id)
+    except ApiTelegramException:
+        logging.debug("ApiTelegramException occurred")
+    else:
+        return True
+    return False
+
+async def send_message(text: str, message) -> None:
+    await js.publish(
+        f"tw.econ.write.{message.message_thread_id}",
+        text.encode(),
+        headers={
+            "Nats-Msg-Id": f"{message.from_user.id}_{message.date}_{hash(text)}_{message.chat.id}"
+        }
+    )
 
 
 async def message_handler_telegram(message: MsgNats):
@@ -151,9 +151,9 @@ async def main():
     global js
     nc, js = await nats_connect(env)
 
-    # await js.delete_stream("tw")
-    await js.add_stream(name='tw', subjects=['tw.*'], max_msgs=5000)
-    await js.subscribe("tw.messages", "telegram_bot", cb=message_handler_telegram)
+    await js.delete_stream("tw")
+    await js.add_stream(name='tw', subjects=['tw.*', 'tw.*.*'], max_msgs=5000)
+    await js.subscribe("tw.tg.*", "telegram_bot", cb=message_handler_telegram)
     logging.info("nats js subscribe \"tw.messages\"")
     logging.info("bot is running")
 
@@ -172,17 +172,11 @@ async def echo_media(message: telebot.types.Message):
         text = f"say \"{reply[:255]}\";" if reply is not None else ""
     text += f"say \"{check_media(message)[:255]}\""
 
-    await js.publish(
-        f"tw.{message.message_thread_id}",
-        text.encode(),
-        headers={
-            "Nats-Msg-Id": f"{message.from_user.id}_{message.date}_{hash(text)}_{message.chat.id}"
-        }
-    )
+    await send_message(text, message)
 
 
 @bot.message_handler(content_types=["text"])
-async def echo_text(message: telebot.types.Message, text: str = None):
+async def echo_text(message: telebot.types.Message):
     if js is None or message is None:
         return
 
