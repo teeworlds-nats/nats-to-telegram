@@ -1,14 +1,14 @@
 import logging
 import os
 import re
-from typing import TypeVar, Callable, Optional
+from typing import TypeVar, Optional
 
 import nats
 import yaml
 from nats.aio.client import Client
 from nats.js import JetStreamContext
 
-DataClassT = TypeVar("DataClassT", bound="BaseModel")
+DataClassT = TypeVar("DataClassT", bound="dataclass")
 _log = logging.getLogger(__name__)
 
 
@@ -25,7 +25,7 @@ def get_env(modal: DataClassT) -> DataClassT:
     return modal(**os.environ)
 
 
-def get_data_env(modal: DataClassT, func: Callable = get_env) -> DataClassT:
+def get_data_env(modal: DataClassT, func = get_env) -> DataClassT:
     if os.path.exists("./config.yaml"):
         with open('./config.yaml', encoding="utf-8") as fh:
             data = yaml.load(fh, Loader=yaml.FullLoader)
@@ -92,4 +92,3 @@ def regex_format(text: str, regex_: Optional[list[re.Pattern]]):
 
         text_ = text_.replace(regex[0], to, 1)
     return text_
-

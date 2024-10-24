@@ -52,11 +52,7 @@ log.setLevel(getattr(logging, env.log_level.upper()))
 def generate_message(_msg: telebot.types.Message, text: str = None) -> str:
     return env.text.format(
         name=_msg.from_user.first_name + (_msg.from_user.last_name or ''),
-        text=text_replace(replace_from_emoji(_msg.text))
-        if text is None
-        else text
-        if _msg.caption is None
-        else f"{text} | {_msg.caption}"
+        text=text_replace(replace_from_emoji(_msg.text)) if text is None else text
     )
 
 
@@ -112,14 +108,6 @@ async def message_handler_telegram(message: MsgNats):
 
     if buffer.get(msg.message_thread_id) is None:
         buffer[msg.message_thread_id] = Buffer()
-
-    if msg.text is None and msg.data is not None:
-        if msg.data.name is not None and msg.data.user_id != "end_status":
-            buffer[msg.message_thread_id].status_data.append(f"{msg.data.name}")
-        else:
-            if await send_msg_telegram("Players: " + ", ".join(buffer[msg.message_thread_id].status_data), msg.message_thread_id):
-                buffer[msg.message_thread_id].status_data.clear()
-        return
 
     text = f"{msg.name}: {msg.text}" if msg.name is not None and msg.name != "" else f"{msg.text}"
 
@@ -181,18 +169,10 @@ async def echo_text(message: telebot.types.Message):
 
     text = ""
 
-    match message.text:
-        case "/ip" | "/addr":
-            text = "get addr"
-        case "/players" | "/status":
-            text = "echo \"end_status\""
-            await send_message("status", message)
-            await asyncio.sleep(1)
-        case _:
-            if message.reply_to_message is not None:
-                reply = generate_message_reply(message)
-                text += f"say \"{reply[:255]}\";" if reply is not None else ""
-            text += f"say \"{generate_message(message)[:255]}\""
+    if message.reply_to_message is not None:
+        reply = generate_message_reply(message)
+        text += f"say \"{reply[:255]}\";" if reply is not None else ""
+    text += f"say \"{generate_message(message)[:255]}\""
 
     await send_message(text, message)
 
