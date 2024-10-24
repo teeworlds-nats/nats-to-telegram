@@ -1,0 +1,5 @@
+[MASTER]
+max-line-length = 500
+
+[MESSAGES CONTROL]
+disable = missing-docstring, import-error, RUF001, E0611:
