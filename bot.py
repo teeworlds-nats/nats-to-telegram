@@ -128,6 +128,7 @@ async def message_handler_telegram(message: MsgNats):
         for i in list_text:
             if await send_msg_telegram(i, msg.message_thread_id):
                 buffer[msg.message_thread_id].string = ""
+   await message.term()
 
 
 def text_replace(msg: str) -> str:
