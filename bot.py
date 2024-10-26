@@ -128,7 +128,7 @@ async def message_handler_telegram(message: MsgNats):
         for i in list_text:
             if await send_msg_telegram(i, msg.message_thread_id):
                 buffer[msg.message_thread_id].string = ""
-   await message.term()
+    await message.term()
 
 
 def text_replace(msg: str) -> str:
@@ -139,7 +139,7 @@ async def main():
     global js
     nc, js = await nats_connect(env)
 
-    await js.delete_stream("tw")
+    # await js.delete_stream("tw")
     await js.add_stream(name='tw', subjects=['tw.*', 'tw.*.*', 'tw.*.*.*'], max_msgs=5000)
     await js.subscribe("tw.tg.*", "telegram_bot", cb=message_handler_telegram)
     logging.info("nats js subscribe \"tw.tg.*\"")
