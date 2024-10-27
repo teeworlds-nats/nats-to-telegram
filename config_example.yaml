@@ -2,6 +2,7 @@ TELEGRAM_BOT_TOKENS:
   - TOKEN
   - TOKEN2
 chat_id: "-1"
-nats_server: nats://127.0.0.1:4222
-nats_user: byfox
-nats_password: password
+util_tg_token: TOKEN3
+util_chat_id: "-1"
+util_thread_id: 8259
+nats_server: nats://nats:4222

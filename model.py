@@ -6,9 +6,14 @@ from pydantic import BaseModel, Field
 class Env(BaseModel):
     TELEGRAM_BOT_TOKENS: str | list = None
     chat_id: str = None
+    util_tg_token: str = None
+    util_chat_id: str = None
+    util_thread_id: str = None
+
     nats_server: str = Field("127.0.0.1")
     nats_user: str = None
     nats_password: str = None
+
     log_level: str = Field("info")
     text: str = Field("[TG] {name}: {text}")
     sticker_string: str = Field("[STICKER {sticker_emoji}]")
@@ -26,6 +31,11 @@ class Msg(BaseModel):
     message_thread_id: Union[int, str]
     regex_type: str
     text: Optional[str]
+
+
+class MsgEvents(BaseModel):
+    server_name: str
+    rcon: str
 
 
 class Buffer(BaseModel):

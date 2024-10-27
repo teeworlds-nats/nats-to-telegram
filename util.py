@@ -1,14 +1,18 @@
+import ast
 import logging
 import os
 import re
-from typing import TypeVar, Optional
+from typing import Optional
 
 import nats
+import telebot
 import yaml
 from nats.aio.client import Client
 from nats.js import JetStreamContext
 
-DataClassT = TypeVar("DataClassT", bound="dataclass")
+from emojies import replace_from_emoji
+from model import Env
+
 _log = logging.getLogger(__name__)
 
 
@@ -17,15 +21,14 @@ __all__ = (
     "nats_connect",
     "format_mention",
     "text_format",
-    "regex_format"
+    "regex_format",
+    "generate_message_reply",
+    "generate_message",
+    "check_media"
 )
 
 
-def get_env(modal: DataClassT) -> DataClassT:
-    return modal(**os.environ)
-
-
-def get_data_env(modal: DataClassT, func = get_env) -> DataClassT:
+def get_data_env(modal):
     if os.path.exists("./config.yaml"):
         with open('./config.yaml', encoding="utf-8") as fh:
             data = yaml.load(fh, Loader=yaml.FullLoader)
@@ -34,10 +37,51 @@ def get_data_env(modal: DataClassT, func = get_env) -> DataClassT:
             _log.info("config loaded from yaml")
             return _yaml
     _log.info("config loaded from env or custom")
-    return func(modal)
+    _modal = modal(**os.environ)
+    return _modal.model_copy(
+        update={"TELEGRAM_BOT_TOKENS": ast.literal_eval(modal.TELEGRAM_BOT_TOKENS)}
+    )
 
 
-async def nats_connect(env: DataClassT) -> tuple[Client, JetStreamContext]:
+def text_replace(msg: str) -> str:
+    return msg.replace("\\", "\\\\").replace("\'", "\\\'").replace("\"", "\\\"").replace("\n", " ")
+
+
+def generate_message(env_text: str,  _msg: telebot.types.Message, text: str = None) -> str:
+    return env_text.format(
+        name=_msg.from_user.first_name + (_msg.from_user.last_name or ''),
+        text=text_replace(replace_from_emoji(_msg.text)) if text is None else text
+    )
+
+
+def generate_message_reply(reply_string: str, env_text: str, _msg: telebot.types.Message, text: str = None) -> str | None:
+    return reply_string.format(
+        replay_id=_msg.reply_to_message.id,
+        replay_msg=text_replace(generate_message(env_text, _msg.reply_to_message))
+    ) if _msg.reply_to_message.text is not None else text
+
+
+def check_media(env: Env, message: telebot.types.Message) -> str:
+    if message.sticker is not None:
+        return generate_message(
+            env.text,
+            message,
+            env.sticker_string.format(
+                sticker_emoji=replace_from_emoji(message.sticker.emoji)
+            )
+        )
+    for i in [
+        "video",
+        "photo",
+        "audio",
+        "voice"
+    ]:
+        if getattr(message, i) is not None:
+            return generate_message(env.text, getattr(env, i + '_string'))
+    return ""
+
+
+async def nats_connect(env) -> tuple[Client, JetStreamContext]:
     nc = await nats.connect(
         servers=env.nats_server,
         user=env.nats_user,

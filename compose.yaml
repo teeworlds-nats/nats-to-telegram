@@ -1,0 +1,11 @@
+services:
+  nats:
+    image: nats:latest
+    entrypoint: /nats-server
+    command: "-js"
+    ports:
+      - "4222:4222"
+      - "8222:8222"
+
+  bot:
+    build: .
