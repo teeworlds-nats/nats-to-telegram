@@ -8,7 +8,7 @@ class Env(BaseModel):
     chat_id: str = None
     util_tg_token: str = None
     util_chat_id: str = None
-    util_thread_id: str = None
+    util_thread_id: int | str = None
 
     nats_server: str = Field("127.0.0.1")
     nats_user: str = None

@@ -64,7 +64,7 @@ async def events_handler_telegram(message: MsgNats):
     await bot_moderator.send_message(
         env.chat_id,
         f"{msg.server_name}: `{msg.rcon}`",
-        message_thread_id=env.message_thread_id
+        message_thread_id=env.util_thread_id
     )
 
 
