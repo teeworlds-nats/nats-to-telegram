@@ -9,3 +9,11 @@ services:
 
   bot:
     build: .
+
+  util-bot:
+    build: .
+    command:
+      - python
+      - -OO
+      - -u
+      - /tw/util-bit.py

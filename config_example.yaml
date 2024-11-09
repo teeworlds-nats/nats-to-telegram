@@ -2,7 +2,19 @@ TELEGRAM_BOT_TOKENS:
   - TOKEN
   - TOKEN2
 chat_id: "-1"
-util_tg_token: TOKEN3
-util_chat_id: "-1"
-util_thread_id: 8259
-nats_server: nats://nats:4222
+
+util:
+  tg_token: TOKEN3
+  chat_id: "-1"
+  logger_thread_id: 8259
+
+nats:
+  servers: nats://nats:4222
+
+admin_ids:
+  - 698170941
+
+custom:
+    - ban:ban {ip} {minutes} {reason}
+    - unban:unban {ip}
+    - muteip:muteip {ip} {seconds} {reason}

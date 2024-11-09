@@ -7,16 +7,25 @@ from typing import Optional
 import nats
 import telebot
 import yaml
+
 from nats.aio.client import Client
 from nats.js import JetStreamContext
+from nats.js.errors import NotFoundError
+from telebot.asyncio_helper import ApiTelegramException
 
 from emojies import replace_from_emoji
-from model import Env
+from model import Env, CustomCommands
 
 _log = logging.getLogger(__name__)
-
+first_word_pattern = re.compile(r'^\S+')
+braces_pattern = re.compile(r'\{([^}]+)}')
 
 __all__ = (
+    "first_word_pattern",
+    "Nats",
+    "search_custom_command",
+    "send_msg_telegram",
+    "send_message",
     "get_data_env",
     "nats_connect",
     "format_mention",
@@ -26,6 +35,51 @@ __all__ = (
     "generate_message",
     "check_media"
 )
+
+
+class Nats:
+    def __init__(self, tuple_nats: tuple[Client, JetStreamContext]) -> None:
+        self.ns, self.js = tuple_nats
+
+    async def check_stream(self, namespace: str, **kwargs):
+        try:
+            await self.js.stream_info(namespace)
+        except NotFoundError:
+            pass
+        else:
+            await self.js.delete_stream(namespace)
+        await self.js.add_stream(name=namespace, **kwargs)
+
+
+def search_custom_command(x: list) -> CustomCommands:
+    args = braces_pattern.findall(x[1])
+    return CustomCommands(
+        slash_command=x[0],
+        tw_command=first_word_pattern.search(x[1]).group(0),
+        args=args,
+        count_args=len(args),
+        example_str=x[1]
+    )
+
+
+async def send_msg_telegram(bot, text: str, thread_id: int, chat_id: int | str) -> bool:
+    try:
+        await bot.send_message(chat_id, text, message_thread_id=thread_id)
+    except ApiTelegramException as err:
+        logging.debug("ApiTelegramException occurred: %s", err)
+    else:
+        return True
+    return False
+
+
+async def send_message(js, text: str, message) -> None:
+    await js.publish(
+        f"tw.econ.write.{message.message_thread_id}",
+        text.encode(),
+        headers={
+            "Nats-Msg-Id": f"{message.from_user.id}_{message.date}_{hash(text)}_{message.chat.id}"
+        }
+    )
 
 
 def get_data_env(modal):
@@ -82,11 +136,7 @@ def check_media(env: Env, message: telebot.types.Message) -> str:
 
 
 async def nats_connect(env) -> tuple[Client, JetStreamContext]:
-    nc = await nats.connect(
-        servers=env.nats_server,
-        user=env.nats_user,
-        password=env.nats_password
-    )
+    nc = await nats.connect(**env.nats.model_dump())
     js = nc.jetstream()
     _log.info("nats connected")
     return nc, js
