@@ -29,36 +29,37 @@ logging.info("count bots: %s", len(bots))
 
 bots = cycle(bots)
 nats: Nats | None = None
+buffer: dict[int | str, Buffer] = {}
 
 
-async def message_handler_telegram(self, message: MsgNats):
+async def message_handler_telegram(message: MsgNats):
     """Takes a message from nats and sends it to telegram."""
     msg = Msg(**json.loads(message.data.decode()))
     logging.debug("tw.%s > %s", msg.message_thread_id, msg.text)
 
-    if self.buffer.get(msg.message_thread_id) is None:
-        self.buffer[msg.message_thread_id] = Buffer()
+    if buffer.get(msg.message_thread_id) is None:
+        buffer[msg.message_thread_id] = Buffer()
 
     text = f"{msg.name}: {msg.text}" if msg.name is not None and msg.name != "" else f"{msg.text}"
 
-    self.buffer[msg.message_thread_id].string += text + "\n"
-    self.buffer[msg.message_thread_id].count += 1
+    buffer[msg.message_thread_id].string += text + "\n"
+    buffer[msg.message_thread_id].count += 1
 
     text_hash = hash(text)
 
-    if self.buffer[msg.message_thread_id].old_message_hash != text_hash or self.buffer[
-        msg.message_thread_id].count >= self.env.repetition:
-        self.buffer[msg.message_thread_id].old_message_hash = text_hash
+    if buffer[msg.message_thread_id].old_message_hash != text_hash or buffer[
+        msg.message_thread_id].count >= env.repetition:
+        buffer[msg.message_thread_id].old_message_hash = text_hash
 
-        list_text = [self.buffer[msg.message_thread_id].string]
-        self.buffer[msg.message_thread_id].count = 0
+        list_text = [buffer[msg.message_thread_id].string]
+        buffer[msg.message_thread_id].count = 0
 
-        if len(self.buffer[msg.message_thread_id].string) > 4000:
-            list_text = split_string(self.buffer[msg.message_thread_id].string, 2000)
+        if len(buffer[msg.message_thread_id].string) > 4000:
+            list_text = split_string(buffer[msg.message_thread_id].string, 2000)
 
         for i in list_text:
-            if await send_msg_telegram(next(self.bots), i, msg.message_thread_id, self.env.chat_id):
-                self.buffer[msg.message_thread_id].string = ""
+            if await send_msg_telegram(next(bots), i, msg.message_thread_id, env.chat_id):
+                buffer[msg.message_thread_id].string = ""
 
     await message.term()
 
