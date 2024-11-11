@@ -29,7 +29,7 @@ logging.info("count bots: %s", len(bots))
 
 bots = cycle(bots)
 nats: Nats | None = None
-buffer: dict[int | str, Buffer] = {}
+buffer: dict[str, Buffer] = {}
 
 
 async def message_handler_telegram(message: MsgNats):
@@ -45,7 +45,7 @@ async def message_handler_telegram(message: MsgNats):
     buffer[msg.message_thread_id].string += text + "\n"
     buffer[msg.message_thread_id].count += 1
 
-    text_hash = hash(text)
+    text_hash = hash(msg.text)
 
     if buffer[msg.message_thread_id].old_message_hash != text_hash or buffer[
         msg.message_thread_id].count >= env.repetition:
@@ -73,7 +73,7 @@ async def main():
     logging.info("nats js subscribe \"tw.tg.*\"")
     logging.info("bot is running")
 
-    await bot.infinity_polling(logger_level=logging.DEBUG)
+    await bot.infinity_polling(logger_level=logging.DEBUG, allowed_updates=["message", "edited_message"])
 
 
 @bot.message_handler(content_types=["photo", "sticker", "sticker", "audio", "voice"])
@@ -105,6 +105,16 @@ async def echo_text(message: telebot.types.Message):
 
     await send_message(nats.js, text, message)
 
+@bot.edited_message_handler(content_types=["text"])
+async def echo_edit_text(message: telebot.types.Message):
+    if nats is None or message is None or message.text.startswith("/"):
+        return
+
+    await send_message(
+        nats.js,
+        f"say \"{env.edit_string.format(msg_id=message.id)} {generate_message(env.text, message)[:255]}\"",
+        message
+    )
 
 if __name__ == '__main__':
     asyncio.run(main())

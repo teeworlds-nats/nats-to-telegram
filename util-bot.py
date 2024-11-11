@@ -36,7 +36,6 @@ async def events_handler_telegram(message: MsgNats):
 async def main():
     global nats
     nats = Nats(await nats_connect(env))
-    await nats.check_stream("tw", subjects=['tw.*', 'tw.*.*', 'tw.*.*.*'], max_age=60)
 
     await nats.js.subscribe("tw.events", "moderator_bot", cb=events_handler_telegram)
     logging.info("nats js subscribe \"tw.events\"")
@@ -50,7 +49,7 @@ async def mod_echo_text(message: telebot.types.Message):
     if nats is None or message is None or not message.text.startswith("/") or env.util.chat_id == message.chat.id:
         return
 
-    text = message.text[1:]
+    text = message.text.replace("/", "", 1)
     first_word = first_word_pattern.search(message.text).group(0)[1:]
     check_ignore = False
     if first_word in ["exec"]:

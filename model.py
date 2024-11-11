@@ -36,6 +36,7 @@ class Env(BaseModel):
     audio_string: str = Field("[AUDIO]")
     voice_string: str = Field("[VOICE]")
     reply_string: str = Field("[Reply {replay_id}] {replay_msg}")
+    edit_string: str = Field("[EDIT {msg_id}]")
     repetition: int = Field(100)
 
     admin_ids: list = Field([])
