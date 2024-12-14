@@ -1,31 +1,26 @@
-from typing import Optional, Union
+from typing import Any
 
 from pydantic import BaseModel, Field
 
 
-class CustomCommands(BaseModel):
-    slash_command: str
-    tw_command: str
-    args: list
-    count_args: int
-    example_str: str
+class Path(BaseModel):
+    chat_id: str
+    thread_id: int = None
+    pattern: str = None
+    read: str
+    tokens: Any
 
 
 class Nats(BaseModel):
     servers: str | list = Field("127.0.0.1", alias="server")
     user: str = None
     password: str = None
+    enable_process_messages: bool = Field(True)
+    write_path: list[str] = None  # path where it writes what the bot reads
+    paths: list[Path]
 
-class Util(BaseModel):
-    tg_token: str = None
-    chat_id: str = None
-    logger_thread_id: int | str = None
 
 class Env(BaseModel):
-    TELEGRAM_BOT_TOKENS: str | list = None
-    chat_id: str = None
-
-    util: Util = None
     nats: Nats
 
     log_level: str = Field("info")
@@ -39,25 +34,13 @@ class Env(BaseModel):
     edit_string: str = Field("[EDIT {msg_id}]")
     repetition: int = Field(100)
 
-    admin_ids: list = Field([])
-    positions_custom_name: list = Field(["[admin]", "[mod]"])
-    custom: list = Field([])
-
 
 class Msg(BaseModel):
-    server_name: Optional[str]
-    name: Optional[str]
-    message_thread_id: Union[int, str]
-    regex_type: str
-    text: Optional[str]
+    server_name: str | None
+    args: list
+    message_thread_id: str | None
 
 
 class MsgEvents(BaseModel):
     server_name: str
     rcon: str
-
-
-class Buffer(BaseModel):
-    string: str = Field("")
-    old_message_hash: int = Field(0)
-    count: int = Field(0)

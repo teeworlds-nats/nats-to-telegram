@@ -1,20 +1,8 @@
-TELEGRAM_BOT_TOKENS:
-  - TOKEN
-  - TOKEN2
-chat_id: "-1"
-
-util:
-  tg_token: TOKEN3
-  chat_id: "-1"
-  logger_thread_id: 8259
-
 nats:
-  servers: nats://nats:4222
-
-admin_ids:
-  - 698170941
-
-custom:
-    - ban:ban {ip} {minutes} {reason}
-    - unban:unban {ip}
-    - muteip:muteip {ip} {seconds} {reason}
+  server: nats://nats:4222
+  paths:
+  - chat_id: "-22"
+    read: tw.tg.*
+    tokens:
+      - "Token1:asdasdasd"
+      - "Token2:asdasdasd"
