@@ -9,6 +9,7 @@ from nats.aio.msg import Msg as MsgNats
 from telebot.async_telebot import AsyncTeleBot
 from telebot.util import split_string
 
+from emojies import replace_from_str
 from model import Env, Msg, Path
 from util import nats_connect, get_data_env, generate_message_reply, generate_message, check_media, send_msg_telegram, \
     send_message, Nats
@@ -21,69 +22,74 @@ log = logging.getLogger("root")
 log.setLevel(getattr(logging, env.log_level.upper()))
 
 
-readers: dict[list[str], Path] = {}
+readers: dict[str, Path] = {}
 tokens: list[str] = []
+
 for path in env.nats.paths:
     if isinstance(path.tokens, list):
         tokens.extend(path.tokens)
     else:
         tokens.append(path.tokens)
 
-for path in env.nats.paths:
     path.tokens = cycle(path.tokens)
-    readers[path.read.split(".")] = path # TODO: доделать
+    readers[path.read] = path
 
-readers_key = list(readers.keys())
-
+readers_keys = list(readers.keys())
 bots: dict[str, AsyncTeleBot] = { token: AsyncTeleBot(token) for token in tokens }
 bot = list(bots.values())[0]
 logging.info("count bots: %s", len(bots))
 
 write_path = env.nats.write_path if env.nats.write_path is not None else ["tw.econ.write.{message_thread_id}"]
 
-
 nats: Nats | None = None
 buffer_text = {}
 
+
 async def message_handler_telegram(message: MsgNats):
     """Takes a message from nats and sends it to telegram."""
+    await message.in_progress()
 
     msg = Msg(**json.loads(message.data.decode()))
     key = msg.message_thread_id or msg.server_name
     logging.debug("%s > %s", message.subject, msg.args)
 
-    for i in readers_key:
-        for sub1, sub2 in zip(message.subject.split("."), i):
-            print(sub1, sub2)
-            print(sub1 == sub2 or sub2 == "*")
+    rd_path = next((i for i in readers_keys if any(sub1 == sub2 or sub2 == "*" for sub1, sub2 in zip(message.subject.split("."), i.split(".")))), "")
 
-    reader = readers.get("")
+    if not rd_path:
+        return await message.ack()
+
+    reader = readers.get(rd_path)
     if reader is None:
-        return
+        return await message.ack()
 
     if buffer_text.get(key) is None:
         buffer_text[key] = ""
+
+    if not msg.args[0]:
+        msg.args.pop(0)
+
     buffer_text[key] += ": ".join(msg.args) if reader.pattern is None else reader.pattern.format(msg.args)
 
     list_text = [buffer_text[key]] if len(buffer_text[key]) < 4000 else split_string(buffer_text[key], 2000)
+    thread_id = msg.message_thread_id or reader.thread_id
 
     for text in list_text:
         if await send_msg_telegram(
                 bots.get(next(reader.tokens)),
-                text,
+                text.replace("{{message_thread_id}}", thread_id),
                 reader.chat_id,
-                reader.thread_id
+                thread_id
         ):
             buffer_text[key] = ""
 
-    await message.term()
+    await message.ack()
+    # await message.term()
 
 
 async def main():
     global nats
-    nats = Nats(
-        await nats_connect(env)
-    )
+
+    nats = Nats(await nats_connect(env))
     await nats.check_stream("tw", subjects=['tw.*', 'tw.*.*', 'tw.*.*.*'], max_msgs=1000)
 
     await nats.js.subscribe("tw.tg.*", "telegram_bot", cb=message_handler_telegram)

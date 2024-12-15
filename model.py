@@ -38,7 +38,7 @@ class Env(BaseModel):
 class Msg(BaseModel):
     server_name: str | None
     args: list
-    message_thread_id: str | None
+    message_thread_id: str | int | None
 
 
 class MsgEvents(BaseModel):
