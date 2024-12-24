@@ -20,7 +20,7 @@ class Nats(BaseModel):
     paths: list[Path]
 
 
-class Env(BaseModel):
+class Config(BaseModel):
     nats: Nats
 
     log_level: str = Field("info")

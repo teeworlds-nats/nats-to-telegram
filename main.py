@@ -4,42 +4,38 @@ import logging
 from itertools import cycle
 
 import telebot.types
-from dotenv import load_dotenv
 from nats.aio.msg import Msg as MsgNats
-from telebot.async_telebot import AsyncTeleBot
 from telebot.util import split_string
 
-from emojies import replace_from_str
-from model import Env, Msg, Path
-from util import nats_connect, get_data_env, generate_message_reply, generate_message, check_media, send_msg_telegram, \
-    send_message, Nats
+from byfoxlib import Message
+from byfoxlib.bot import Bot
+from byfoxlib.model import Config, Msg, Path
+from byfoxlib.util import nats_connect, get_config, generate_message_reply, generate_message, check_media, Nats
 
-load_dotenv()
-env: Env = get_data_env(Env)
+config: Config = get_config(Config)
 
 logging.basicConfig(format='%(asctime)s:%(levelname)s:%(name)s: %(message)s')
 log = logging.getLogger("root")
-log.setLevel(getattr(logging, env.log_level.upper()))
+log.setLevel(getattr(logging, config.log_level.upper()))
 
 
 readers: dict[str, Path] = {}
-tokens: list[str] = []
 
-for path in env.nats.paths:
-    if isinstance(path.tokens, list):
-        tokens.extend(path.tokens)
+for path in config.nats.paths:
+    if isinstance(path.tokens, str):
+        Bot(path.tokens)
     else:
-        tokens.append(path.tokens)
+        for token in path.tokens:
+            Bot(token)
 
     path.tokens = cycle(path.tokens)
     readers[path.read] = path
 
 readers_keys = list(readers.keys())
-bots: dict[str, AsyncTeleBot] = { token: AsyncTeleBot(token) for token in tokens }
+bots: dict[str, Bot] = Bot.get_tokens()
 bot = list(bots.values())[0]
-logging.info("count bots: %s", len(bots))
 
-write_path = env.nats.write_path if env.nats.write_path is not None else ["tw.econ.write.{message_thread_id}"]
+write_path = config.nats.write_path if config.nats.write_path is not None else ["tw.econ.write.{message_thread_id}"]
 
 nats: Nats | None = None
 buffer_text = {}
@@ -74,8 +70,8 @@ async def message_handler_telegram(message: MsgNats):
     thread_id = msg.message_thread_id or reader.thread_id
 
     for text in list_text:
-        if await send_msg_telegram(
-                bots.get(next(reader.tokens)),
+        bot = bots.get(next(reader.tokens))
+        if await bot.send_msg_telegram(
                 text.replace("{{message_thread_id}}", thread_id),
                 reader.chat_id,
                 thread_id
@@ -89,14 +85,17 @@ async def message_handler_telegram(message: MsgNats):
 async def main():
     global nats
 
-    nats = Nats(await nats_connect(env))
+    nats = Nats(await nats_connect(config))
     await nats.check_stream("tw", subjects=['tw.*', 'tw.*.*', 'tw.*.*.*'], max_msgs=1000)
 
     await nats.js.subscribe("tw.tg.*", "telegram_bot", cb=message_handler_telegram)
     logging.info("nats js subscribe \"tw.tg.*\"")
     logging.info("bot is running")
 
-    await bot.infinity_polling(logger_level=logging.DEBUG, allowed_updates=["message", "edited_message"])
+    await bot.infinity_polling(
+        logger_level=logging.DEBUG,
+        allowed_updates=["message", "edited_message"]
+    )
 
 
 @bot.message_handler(content_types=["photo", "sticker", "sticker", "audio", "voice"])
@@ -104,17 +103,18 @@ async def echo_media(message: telebot.types.Message):
     if nats is None or message is None:
         return
 
+    if config.nats.enable_process_messages:
+        msg = Message()
 
-    if env.nats.enable_process_messages:
-        text = ""
         if message.reply_to_message is not None:
-            reply = generate_message_reply(env.reply_string, env.text, message)
-            text = f"say \"{reply[:255]}\";" if reply is not None else ""
-        text += f"say \"{check_media(env, message)[:255]}\""
+            reply = generate_message_reply(config.reply_string, config.text, message)
+            msg + reply[:255] if reply is not None else ""
+        msg + check_media(config, message)[:255]
+        data = str(msg)
     else:
-        text = json.dumps(message.__dict__)
+        data = json.dumps(message.__dict__)
 
-    await send_message(write_path, nats.js, text, message)
+    await nats.send_message(write_path, data, message)
 
 
 @bot.message_handler(content_types=["text"])
@@ -122,32 +122,33 @@ async def echo_text(message: telebot.types.Message):
     if nats is None or message is None or message.text.startswith("/"):
         return
 
-    if env.nats.enable_process_messages:
-        text = ""
-        if message.reply_to_message is not None:
-            reply = generate_message_reply(env.reply_string, env.text, message)
-            text += f"say \"{reply[:255]}\";" if reply is not None else ""
-        text += f"say \"{generate_message(env.text, message)[:255]}\""
-    else:
-        text = json.dumps(message.__dict__)
+    if config.nats.enable_process_messages:
+        msg = Message()
 
-    await send_message(write_path, nats.js, text, message)
+        if message.reply_to_message is not None:
+            reply = generate_message_reply(config.reply_string, config.text, message)
+            msg + reply[:255] if reply is not None else ""
+        msg + generate_message(config.text, message)[:255]
+        data = str(msg)
+    else:
+        data = json.dumps(message.__dict__)
+
+    await nats.send_message(write_path, data, message)
 
 @bot.edited_message_handler(content_types=["text"])
 async def echo_edit_text(message: telebot.types.Message):
     if nats is None or message is None or message.text.startswith("/"):
         return
 
-    text = f"say \"{env.edit_string.format(msg_id=message.id)} {generate_message(env.text, message)[:255]}\"" \
-        if env.nats.enable_process_messages \
-        else json.dumps(message.__dict__)
+    if config.nats.enable_process_messages:
+        string = config.edit_string.format(msg_id=message.id)
+        text = generate_message(config.text, message)[:255]
+        data = str(Message(f"{string} {text}"))
+    else:
+        data = json.dumps(message.__dict__)
 
-    await send_message(
-        write_path,
-        nats.js,
-        text,
-        message
-    )
+
+    await nats.send_message(write_path, data, message)
 
 if __name__ == '__main__':
     asyncio.run(main())
