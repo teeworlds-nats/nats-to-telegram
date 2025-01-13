@@ -88,7 +88,8 @@ async def main():
     nats = Nats(await nats_connect(config))
     await nats.check_stream("tw", subjects=['tw.*', 'tw.*.*', 'tw.*.*.*'], max_msgs=1000)
 
-    await nats.js.subscribe("tw.tg.*", "telegram_bot", cb=message_handler_telegram)
+    for path in config.nats.paths:
+        await nats.js.subscribe(path.read, "telegram_bot", cb=message_handler_telegram)
     logging.info("nats js subscribe \"tw.tg.*\"")
     logging.info("bot is running")
 
