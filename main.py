@@ -67,7 +67,7 @@ async def message_handler_telegram(message: MsgNats):
     if not msg.args[0]:
         msg.args.pop(0)
 
-    buffer_text[key] += ": ".join(msg.args) if reader.pattern is None else reader.pattern.format(msg.args)
+    buffer_text[key] += (": ".join(msg.args) if reader.pattern is None else reader.pattern.format(msg.args)) + "\n"
 
     list_text = [buffer_text[key]] if len(buffer_text[key]) < 4000 else split_string(buffer_text[key], 2000)
     thread_id = msg.message_thread_id or reader.thread_id
