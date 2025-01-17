@@ -61,6 +61,9 @@ async def message_handler_telegram(message: MsgNats):
     if buffer_text.get(key) is None:
         buffer_text[key] = ""
 
+    if nats.server_name.get(msg.message_thread_id) is None:
+        nats.server_name[msg.message_thread_id] = msg.server_name
+
     if not msg.args[0]:
         msg.args.pop(0)
 
@@ -70,9 +73,9 @@ async def message_handler_telegram(message: MsgNats):
     thread_id = msg.message_thread_id or reader.thread_id
 
     for text in list_text:
-        bot = bots.get(next(reader.tokens))
-        if await bot.send_msg_telegram(
-                text.replace("{{message_thread_id}}", thread_id),
+        bot_ = bots.get(next(reader.tokens))
+        if await bot_.send_msg_telegram(
+                text,
                 reader.chat_id,
                 thread_id
         ):
@@ -88,8 +91,8 @@ async def main():
     nats = Nats(await nats_connect(config))
     await nats.check_stream("tw", subjects=['tw.*', 'tw.*.*', 'tw.*.*.*'], max_msgs=1000)
 
-    for path in config.nats.paths:
-        await nats.js.subscribe(path.read, "telegram_bot", cb=message_handler_telegram)
+    for _path in config.nats.paths:
+        await nats.js.subscribe(_path.read, "telegram_bot", cb=message_handler_telegram)
     logging.info("nats js subscribe \"tw.tg.*\"")
     logging.info("bot is running")
 
