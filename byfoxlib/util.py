@@ -44,7 +44,7 @@ class Nats:
 
     async def send_message(
             self,
-            write_path: list[str],
+            write_path,
             text: str,
             message: telebot.types.Message
     ) -> None:
@@ -53,7 +53,7 @@ class Nats:
                 path.format(message_thread_id=message.message_thread_id, server_name=self.server_name.get(message.message_thread_id)),
                 text.encode(),
                 headers={
-                    "Nats-Msg-Id": f"{message.from_user.id}_{message.date}_{hash(text)}_{message.chat.id}"
+                    "Nats-Msg-Id": f"{message.from_user.id}_{message.date}_{hash(text)}_{message.message_thread_id}"
                 }
             )
 

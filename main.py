@@ -35,7 +35,7 @@ readers_keys = list(readers.keys())
 bots: dict[str, Bot] = Bot.get_tokens()
 bot = list(bots.values())[0]
 
-write_path = config.nats.write_path if config.nats.write_path is not None else ["tw.econ.write.{message_thread_id}"]
+write_path = set(config.nats.write_path if config.nats.write_path is not None else ["tw.econ.write.{message_thread_id}"]) # TODO: Remake
 
 nats: Nats | None = None
 buffer_text = {}
@@ -89,7 +89,7 @@ async def main():
     global nats
 
     nats = Nats(await nats_connect(config))
-    await nats.check_stream("tw", subjects=['tw.*', 'tw.*.*', 'tw.*.*.*'], max_msgs=1000)
+    await nats.check_stream("tw", subjects=['tw.*', 'tw.*.*', 'tw.*.*.*'], max_msgs=1000, max_age=30)
 
     for _path in config.nats.paths:
         await nats.js.subscribe(_path.read, "telegram_bot", cb=message_handler_telegram)
