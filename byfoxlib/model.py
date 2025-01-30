@@ -8,6 +8,7 @@ class Path(BaseModel):
     thread_id: int = None
     pattern: str = None
     read: str
+    write: list[str] = Field("tw.econ.write.{message_thread_id}")
     tokens: Any
 
 
@@ -16,7 +17,6 @@ class Nats(BaseModel):
     user: str = None
     password: str = None
     enable_process_messages: bool = Field(True)
-    write_path: list[str] = None  # path where it writes what the bot reads
     paths: list[Path]
 
 

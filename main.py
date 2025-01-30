@@ -18,7 +18,7 @@ logging.basicConfig(format='%(asctime)s:%(levelname)s:%(name)s: %(message)s')
 log = logging.getLogger("root")
 log.setLevel(getattr(logging, config.log_level.upper()))
 
-
+writers: dict[int, tuple] = {}
 readers: dict[str, Path] = {}
 
 for path in config.nats.paths:
@@ -30,12 +30,11 @@ for path in config.nats.paths:
 
     path.tokens = cycle(path.tokens)
     readers[path.read] = path
+    writers[int(path.chat_id)] = (path.write, path.thread_id)
 
 readers_keys = list(readers.keys())
 bots: dict[str, Bot] = Bot.get_tokens()
 bot = list(bots.values())[0]
-
-write_path = set(config.nats.write_path if config.nats.write_path is not None else ["tw.econ.write.{message_thread_id}"]) # TODO: Remake
 
 nats: Nats | None = None
 buffer_text = {}
@@ -107,6 +106,10 @@ async def echo_media(message: telebot.types.Message):
     if nats is None or message is None:
         return
 
+    wr = writers.get(message.chat.id)
+    if wr is None or wr[1] != message.message_thread_id:
+        return
+
     if config.nats.enable_process_messages:
         msg = Message()
 
@@ -118,12 +121,16 @@ async def echo_media(message: telebot.types.Message):
     else:
         data = json.dumps(message.__dict__)
 
-    await nats.send_message(write_path, data, message)
+    await nats.send_message(wr[0], data, message)
 
 
 @bot.message_handler(content_types=["text"])
 async def echo_text(message: telebot.types.Message):
     if nats is None or message is None or message.text.startswith("/"):
+        return
+
+    wr = writers.get(message.chat.id)
+    if wr is None or wr[1] != message.message_thread_id:
         return
 
     if config.nats.enable_process_messages:
@@ -137,11 +144,15 @@ async def echo_text(message: telebot.types.Message):
     else:
         data = json.dumps(message.__dict__)
 
-    await nats.send_message(write_path, data, message)
+    await nats.send_message(wr[0], data, message)
 
 @bot.edited_message_handler(content_types=["text"])
 async def echo_edit_text(message: telebot.types.Message):
     if nats is None or message is None or message.text.startswith("/"):
+        return
+
+    wr = writers.get(message.chat.id)
+    if wr is None or wr[1] != message.message_thread_id:
         return
 
     if config.nats.enable_process_messages:
@@ -152,7 +163,7 @@ async def echo_edit_text(message: telebot.types.Message):
         data = json.dumps(message.__dict__)
 
 
-    await nats.send_message(write_path, data, message)
+    await nats.send_message(wr[0], data, message)
 
 if __name__ == '__main__':
     asyncio.run(main())
