@@ -35,10 +35,15 @@ class Config(BaseModel):
     repetition: int = Field(100)
 
 
-class Msg(BaseModel):
+class Args(BaseModel):
     server_name: str | None
-    args: list
-    message_thread_id: str | int | None
+    message_thread_id: int | None
+
+
+class Msg(BaseModel):
+    value: list
+    args: Args
+
 
 
 class MsgEvents(BaseModel):

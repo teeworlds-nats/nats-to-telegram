@@ -7,10 +7,8 @@ import telebot.types
 from nats.aio.msg import Msg as MsgNats
 from telebot.util import split_string
 
-from byfoxlib import Message
-from byfoxlib.bot import Bot
-from byfoxlib.model import Config, Msg, Path
-from byfoxlib.util import nats_connect, get_config, generate_message_reply, generate_message, check_media, Nats
+from byfoxlib import Message, Bot, nats_connect, get_config, generate_message_reply, generate_message, check_media, \
+    Nats, Config, Msg, Path
 
 config: Config = get_config(Config)
 
@@ -45,10 +43,11 @@ async def message_handler_telegram(message: MsgNats):
     await message.in_progress()
 
     msg = Msg(**json.loads(message.data.decode()))
-    key = msg.message_thread_id or msg.server_name
-    logging.debug("%s > %s", message.subject, msg.args)
+    key = msg.args.server_name or msg.args.message_thread_id
+    logging.debug("%s > %s", message.subject, msg.value)
 
-    rd_path = next((i for i in readers_keys if any(sub1 == sub2 or sub2 == "*" for sub1, sub2 in zip(message.subject.split("."), i.split(".")))), "")
+    rd_path = next((i for i in readers_keys if any(
+        sub1 == sub2 or sub2 == "*" for sub1, sub2 in zip(message.subject.split("."), i.split("."), strict=False))), "")
 
     if not rd_path:
         return await message.ack()
@@ -60,16 +59,16 @@ async def message_handler_telegram(message: MsgNats):
     if buffer_text.get(key) is None:
         buffer_text[key] = ""
 
-    if nats.server_name.get(msg.message_thread_id) is None:
-        nats.server_name[msg.message_thread_id] = msg.server_name
+    if nats.server_name.get(msg.args.message_thread_id) is None:
+        nats.server_name[msg.args.message_thread_id] = msg.args.server_name
 
-    if not msg.args[0]:
-        msg.args.pop(0)
+    if not msg.value[0]:
+        msg.value.pop(0)
 
-    buffer_text[key] += (": ".join(msg.args) if reader.pattern is None else reader.pattern.format(msg.args)) + "\n"
+    buffer_text[key] += (": ".join(msg.value) if reader.pattern is None else reader.pattern.format(msg.value)) + "\n"
 
     list_text = [buffer_text[key]] if len(buffer_text[key]) < 4000 else split_string(buffer_text[key], 2000)
-    thread_id = msg.message_thread_id or reader.thread_id
+    thread_id = msg.args.message_thread_id or reader.thread_id
 
     for text in list_text:
         bot_ = bots.get(next(reader.tokens))
@@ -146,6 +145,7 @@ async def echo_text(message: telebot.types.Message):
 
     await nats.send_message(wr[0], data, message)
 
+
 @bot.edited_message_handler(content_types=["text"])
 async def echo_edit_text(message: telebot.types.Message):
     if nats is None or message is None or message.text.startswith("/"):
@@ -162,8 +162,8 @@ async def echo_edit_text(message: telebot.types.Message):
     else:
         data = json.dumps(message.__dict__)
 
-
     await nats.send_message(wr[0], data, message)
+
 
 if __name__ == '__main__':
     asyncio.run(main())

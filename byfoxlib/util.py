@@ -1,11 +1,9 @@
 import logging
 import re
-from typing import Optional
 
 import nats
 import telebot
 import yaml
-
 from nats.aio.client import Client
 from nats.js import JetStreamContext
 from nats.js.errors import NotFoundError
@@ -44,18 +42,18 @@ class Nats:
 
     async def send_message(
             self,
-            write_path,
+            write_path: str,
             text: str,
             message: telebot.types.Message
     ) -> None:
-        for path in write_path:
-            await self.js.publish(
-                path.format(message_thread_id=message.message_thread_id, server_name=self.server_name.get(message.message_thread_id)),
-                text.encode(),
-                headers={
-                    "Nats-Msg-Id": f"{message.from_user.id}_{message.date}_{hash(text)}_{message.message_thread_id}"
-                }
-            )
+        await self.js.publish(
+            write_path.format(message_thread_id=message.message_thread_id,
+                              server_name=self.server_name.get(message.message_thread_id)),
+            text.encode(),
+            headers={
+                "Nats-Msg-Id": f"{message.from_user.id}_{message.date}_{hash(text)}_{message.message_thread_id}"
+            }
+        )
 
 
 def get_config(modal):
@@ -71,14 +69,15 @@ def text_replace(msg: str) -> str:
     return msg.replace("\\", "\\\\").replace("\'", "\\\'").replace("\"", "\\\"").replace("\n", " ")
 
 
-def generate_message(env_text: str,  _msg: telebot.types.Message, text: str = None) -> str:
+def generate_message(env_text: str, _msg: telebot.types.Message, text: str = None) -> str:
     return env_text.format(
         name=_msg.from_user.first_name + (_msg.from_user.last_name or ''),
         text=text_replace(replace_from_emoji(_msg.text)) if text is None else text
     )
 
 
-def generate_message_reply(reply_string: str, env_text: str, _msg: telebot.types.Message, text: str = None) -> str | None:
+def generate_message_reply(reply_string: str, env_text: str, _msg: telebot.types.Message,
+                           text: str = None) -> str | None:
     return reply_string.format(
         replay_id=_msg.reply_to_message.id,
         replay_msg=text_replace(generate_message(env_text, _msg.reply_to_message))
@@ -112,7 +111,7 @@ async def nats_connect(env: Config) -> tuple[Client, JetStreamContext]:
     return nc, js
 
 
-def format_mention(nickname: Optional[str]) -> Optional[str]:
+def format_mention(nickname: str | None) -> str | None:
     """
     Formats the nickname to protect against spam mentions in chat.
 
@@ -133,7 +132,7 @@ def format_mention(nickname: Optional[str]) -> Optional[str]:
     return nickname
 
 
-def text_format(text: str, text_list: Optional[list]):
+def text_format(text: str, text_list: list | None):
     if text_list is None:
         return text
 
@@ -144,7 +143,7 @@ def text_format(text: str, text_list: Optional[list]):
     return text_
 
 
-def regex_format(text: str, regex_: Optional[list[re.Pattern]]):
+def regex_format(text: str, regex_: list[re.Pattern] | None):
     if regex_ is None:
         return text
 
