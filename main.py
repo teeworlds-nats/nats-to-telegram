@@ -120,7 +120,7 @@ async def echo_media(message: telebot.types.Message):
     else:
         data = json.dumps(message.__dict__)
 
-    await nats.send_message(wr[0], data, message)
+    await nats.send_message(wr, data, message)
 
 
 @bot.message_handler(content_types=["text"])
@@ -162,7 +162,7 @@ async def echo_edit_text(message: telebot.types.Message):
     else:
         data = json.dumps(message.__dict__)
 
-    await nats.send_message(wr[0], data, message)
+    await nats.send_message(wr, data, message)
 
 
 if __name__ == '__main__':
