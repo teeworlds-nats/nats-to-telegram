@@ -4,11 +4,11 @@ from pydantic import BaseModel, Field
 
 
 class Path(BaseModel):
-    chat_id: str
+    chat_id: str | int
     thread_id: int = None
     pattern: str = None
     read: str
-    write: list[str] = Field("tw.econ.write.{message_thread_id}")
+    write: str = Field("tw.econ.write.{message_thread_id}")
     tokens: Any
 
 

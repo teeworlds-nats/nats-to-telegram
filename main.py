@@ -16,7 +16,7 @@ logging.basicConfig(format='%(asctime)s:%(levelname)s:%(name)s: %(message)s')
 log = logging.getLogger("root")
 log.setLevel(getattr(logging, config.log_level.upper()))
 
-writers: dict[int, tuple] = {}
+writers: dict[int, str] = {}
 readers: dict[str, Path] = {}
 
 for path in config.nats.paths:
@@ -28,7 +28,7 @@ for path in config.nats.paths:
 
     path.tokens = cycle(path.tokens)
     readers[path.read] = path
-    writers[int(path.chat_id)] = (path.write, path.thread_id)
+    writers[path.thread_id] = path.write
 
 readers_keys = list(readers.keys())
 bots: dict[str, Bot] = Bot.get_tokens()
@@ -105,9 +105,9 @@ async def echo_media(message: telebot.types.Message):
     if nats is None or message is None:
         return
 
-    wr = writers.get(message.chat.id)
-    if wr is None or wr[1] != message.message_thread_id:
-        return
+    wr = writers.get(message.message_thread_id)
+    if wr is None:
+        wr = "tw.econ.write.{message_thread_id}"
 
     if config.nats.enable_process_messages:
         msg = Message()
@@ -128,9 +128,9 @@ async def echo_text(message: telebot.types.Message):
     if nats is None or message is None or message.text.startswith("/"):
         return
 
-    wr = writers.get(message.chat.id)
-    if wr is None or wr[1] != message.message_thread_id:
-        return
+    wr = writers.get(message.message_thread_id)
+    if wr is None:
+        wr = "tw.econ.write.{message_thread_id}"
 
     if config.nats.enable_process_messages:
         msg = Message()
@@ -143,7 +143,7 @@ async def echo_text(message: telebot.types.Message):
     else:
         data = json.dumps(message.__dict__)
 
-    await nats.send_message(wr[0], data, message)
+    await nats.send_message(wr, data, message)
 
 
 @bot.edited_message_handler(content_types=["text"])
@@ -151,9 +151,9 @@ async def echo_edit_text(message: telebot.types.Message):
     if nats is None or message is None or message.text.startswith("/"):
         return
 
-    wr = writers.get(message.chat.id)
-    if wr is None or wr[1] != message.message_thread_id:
-        return
+    wr = writers.get(message.message_thread_id)
+    if wr is None:
+        wr = "tw.econ.write.{message_thread_id}"
 
     if config.nats.enable_process_messages:
         string = config.edit_string.format(msg_id=message.id)

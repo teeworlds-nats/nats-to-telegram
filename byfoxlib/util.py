@@ -46,9 +46,11 @@ class Nats:
             text: str,
             message: telebot.types.Message
     ) -> None:
+        path = write_path.format(message_thread_id=message.message_thread_id,
+                              server_name=self.server_name.get(message.message_thread_id))
+        logging.debug(f"Sending message to {path}, {text}")
         await self.js.publish(
-            write_path.format(message_thread_id=message.message_thread_id,
-                              server_name=self.server_name.get(message.message_thread_id)),
+            path,
             text.encode(),
             headers={
                 "Nats-Msg-Id": f"{message.from_user.id}_{message.date}_{hash(text)}_{message.message_thread_id}"
