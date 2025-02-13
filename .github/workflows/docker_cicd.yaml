@@ -1,9 +1,14 @@
 name: Build, Push, Deploy
 on:
-  push:
-    branches:
-    - main
-    - dev
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Choose the environment to deploy to'
+        required: true
+        default: 'dev'
+        options:
+          - dev
+          - prod
 
 jobs:
   build-push:
@@ -34,18 +39,5 @@ jobs:
       with:
         context: .
         push: true
-        tags: ${{ secrets.DOCKER_REGISTRY }}/tw/nats/nats-to-telegram:${{ steps.version.outputs.builddate }}
+        tags: ${{ secrets.DOCKER_REGISTRY }}/tw/nats/nats-to-telegram:${{ steps.version.outputs.builddate }}-${{ github.event.inputs.environment }}
         labels: ${{ steps.meta.outputs.labels }}
-        
-  # deploy:      
-  #   name: Deploy in Kubernetes
-  #   runs-on: bitnami/kubectl
-  #   steps:
-  #   - name: Deploy
-  #     uses: actions-hub/kubectl@master
-  #     env:
-  #       KUBE_HOST: ${{ secrets.KUBE_HOST }}
-  #       KUBE_CERTIFICATE: ${{ secrets.KUBE_CERTIFICATE }}
-  #       KUBE_TOKEN: ${{ secrets.KUBE_TOKEN }}
-  #     with:
-  #       args: get pods
