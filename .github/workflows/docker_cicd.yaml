@@ -20,12 +20,17 @@ jobs:
       run: |
         echo "builddate=$(date +'%Y.%m.%d-%H-%M-%S')" >> $GITHUB_OUTPUT
       id: version  # this is used on variable path
-        
+
     - name: Check out the repo
       uses: actions/checkout@v4
       
     - name: Set up QEMU
       uses: docker/setup-qemu-action@v3
+
+    - name: Set timeout environment variables
+      run: |
+        echo "DOCKER_CLIENT_TIMEOUT=300" >> $GITHUB_ENV
+        echo "COMPOSE_HTTP_TIMEOUT=300" >> $GITHUB_ENV
         
     - name: Log in our registry
       uses: docker/login-action@v3
