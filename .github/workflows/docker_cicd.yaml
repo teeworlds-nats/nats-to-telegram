@@ -44,5 +44,5 @@ jobs:
       with:
         context: .
         push: true
-        tags: ${{ secrets.DOCKER_REGISTRY }}/common/nats-to-telegram:${{ steps.version.outputs.builddate }}-${{ github.event.inputs.environment }}
+        tags: ${{ secrets.DOCKER_REGISTRY }}/common/telegram_bot:${{ steps.version.outputs.builddate }}-${{ github.event.inputs.environment }}
         labels: ${{ steps.meta.outputs.labels }}
